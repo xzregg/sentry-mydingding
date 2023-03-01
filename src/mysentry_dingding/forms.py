@@ -31,3 +31,7 @@ class DingDingOptionsForm(forms.Form):
             max_length=255,
             help_text=u'分支名:如 master'
     )
+    gitlab_contact = forms.CharField(
+            widget=forms.Textarea,
+            help_text=u'联系人,格式: 名字 手机号 一行一个'
+    )

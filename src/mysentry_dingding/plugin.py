@@ -78,7 +78,9 @@ class DingDingPlugin(NotificationPlugin):
         gitlab_private_token = self.get_option('gitlab_private_token', group.project) or ''
         deploy_path = self.get_option('deploy_path', group.project) or ''
         branch = self.get_option('branch', group.project) or ''
-
+        gitlab_contact = self.get_option('gitlab_contact', group.project) or ''
+        contact_map = dict([line.split() for line in gitlab_contact.split('\n') if line])
+        at_list = []
         send_url = DingTalk_API.format(token=access_token)
         title = u"New alert from {}".format(event.project.slug)
         event_data = dict(event.data)
@@ -105,11 +107,14 @@ class DingDingPlugin(NotificationPlugin):
                         filename = file_path.strip('/')
                         git_commit = get_git_track_msg_author_info(gitlab_url, gitlab_private_token, gitlab_project_name, filename, lineno, branch=branch)
                         if git_commit:
-                            git_msg = '@%s %s' % (git_commit.get('committer_name').strip(), git_commit.get('message').strip())
+                            committer_name = git_commit.get('committer_name').strip()
+                            at_name = contact_map.get(committer_name, '')
                             git_repo_url = '%s/%s/blame/%s/%s#L%s' % (gitlab_url, gitlab_project_name, branch, filename, lineno)
-                            git_msg = '%s %s %s' % (filename, lineno, git_msg)
+                            git_msg = '%s %s [gitlab](%s)' % (filename, lineno, git_repo_url)
                             # https://gitlab.base.packertec.com/shixiang-sass/backend/cashier_v4/blame/master/sdks/alipay.py#L14
-                            git_msg = u'\n\n %s [gitlab](%s) %s' % (git_msg, git_repo_url, rid)
+                            git_msg = u'\n\n %s %s @%s %s' % (git_msg, git_commit.get('message').strip(), at_name or committer_name, rid)
+                            if at_name:
+                                at_list.append(at_name)
                             break
 
         data = {
@@ -124,6 +129,8 @@ class DingDingPlugin(NotificationPlugin):
                         )
                 }
         }
+        if at_list:
+            data["at"] = {"atMobiles": at_list}
         requests.post(
                 url=send_url,
                 headers={"Content-Type": "application/json"},
