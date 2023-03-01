@@ -6,8 +6,8 @@ import requests
 import six
 from sentry.plugins.bases.notify import NotificationPlugin
 from sentry import features
-from sentry.models import Event
-import sentry_dingding
+from sentry.models.event import Event
+import mysentry_dingding
 from .forms import DingDingOptionsForm
 import gitlab
 
@@ -39,7 +39,7 @@ class DingDingPlugin(NotificationPlugin):
     """
     author = 'ansheng'
     author_url = 'https://github.com/anshengme/sentry-dingding'
-    version = sentry_dingding.VERSION
+    version = mysentry_dingding.VERSION
     description = 'Send error counts to DingDing.'
     resource_links = [
             ('Source', 'https://github.com/anshengme/sentry-dingding'),
