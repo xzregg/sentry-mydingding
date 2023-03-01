@@ -22,6 +22,7 @@ setup(
     install_requires=[
         'sentry>=9.0.0',
         'requests',
+        'python-gitlab>=3.13.0'
     ],
     entry_points={
         'sentry.plugins': [

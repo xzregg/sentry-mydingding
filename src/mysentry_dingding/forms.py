@@ -23,3 +23,11 @@ class DingDingOptionsForm(forms.Form):
             max_length=255,
             help_text=u'项目部署绝对路径,如 /app'
     )
+    gitlab_private_token = forms.CharField(
+            max_length=255,
+            help_text=u'Gitlab 访问 token(private_token)'
+    )
+    branch = forms.CharField(
+            max_length=255,
+            help_text=u'分支名:如 master'
+    )

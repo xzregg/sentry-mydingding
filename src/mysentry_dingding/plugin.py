@@ -9,6 +9,26 @@ from sentry import features
 from sentry.models import Event
 import sentry_dingding
 from .forms import DingDingOptionsForm
+import gitlab
+
+
+def get_git_track_msg_author_info(git_url, private_token, project_name_with_namespace, filename, lineno, branch='master'):
+    try:
+        gl = gitlab.Gitlab(url=git_url, private_token=private_token)
+        project = gl.projects.get(project_name_with_namespace)
+        blames = project.files.blame(filename, branch)
+        tlc = 0
+        for item in blames:
+            commit, lines = item.get('commit', {}), item.get('lines', [])
+            tlc += len(lines)
+            if tlc >= lineno:
+                return commit
+        return {}
+    except gitlab.exceptions.GitlabListError as e:
+        return {}
+    except Exception as e:
+        return {}
+
 
 DingTalk_API = "https://oapi.dingtalk.com/robot/send?access_token={token}"
 
@@ -55,7 +75,10 @@ class DingDingPlugin(NotificationPlugin):
         access_token = self.get_option('access_token', group.project)
         gitlab_url = self.get_option('gitlab_url', group.project) or ''
         gitlab_project_name = self.get_option('gitlab_project_name', group.project) or ''
+        gitlab_private_token = self.get_option('gitlab_private_token', group.project) or ''
         deploy_path = self.get_option('deploy_path', group.project) or ''
+        branch = self.get_option('branch', group.project) or ''
+
         send_url = DingTalk_API.format(token=access_token)
         title = u"New alert from {}".format(event.project.slug)
         event_data = dict(event.data)
@@ -65,26 +88,29 @@ class DingDingPlugin(NotificationPlugin):
         if values:
             stacktrace = values[-1]
             stacktrace = stacktrace.get('stacktrace')
-            gitlab_project_name = gitlab_project_name.strip('/')
             if stacktrace:
                 frames = stacktrace['frames']
-                last_frame = frames[-1]
-                in_app = last_frame.get('in_app')
-                extra = event_data.get('extra', {})
-                git_msg = extra.get('git_msg', '').strip("'")
-                git_repo_url = extra.get('git_repo_url', '').strip("'")
-                rid = extra.get('rid', '').strip("'")
-                lineno = last_frame.get('lineno')
-                abs_path = last_frame.get('abs_path', '')
-                abs_path = abs_path.replace('\\', '/')
-                in_app = in_app or (deploy_path and abs_path.startswith(deploy_path))
-                if in_app:
-                    file_path = abs_path.split(deploy_path, 1)[-1]
-                    filename = file_path.strip('/')
-                    git_repo_url = '%s/%s#L%s' % (gitlab_url, filename, lineno)
-                    git_msg = '%s %s %s' % (git_msg, filename, lineno)
-                    # https://gitlab.base.packertec.com/shixiang-sass/backend/cashier_v4/blame/master/sdks/alipay.py#L14
-                    git_msg = u'\n\n %s [gitlab](%s) %s' % (git_msg, git_repo_url, rid)
+                for last_frame in frames[::-1]:
+                    in_app = last_frame.get('in_app')
+                    extra = event_data.get('extra', {})
+                    git_msg = extra.get('git_msg', '').strip("'")
+                    rid = extra.get('rid', '').strip("'") or extra.get('task_id', '').strip("'")
+
+                    lineno = last_frame.get('lineno')
+                    abs_path = last_frame.get('abs_path', '')
+                    abs_path = abs_path.replace('\\', '/')
+                    in_app = in_app or (deploy_path and abs_path.startswith(deploy_path))
+                    if in_app:
+                        file_path = abs_path.split(deploy_path, 1)[-1]
+                        filename = file_path.strip('/')
+                        git_commit = get_git_track_msg_author_info(gitlab_url, gitlab_private_token, gitlab_project_name, filename, lineno, branch=branch)
+                        if git_commit:
+                            git_msg = '@%s %s' % (git_commit.get('committer_name').strip(), git_commit.get('message').strip())
+                            git_repo_url = '%s/%s/blame/%s/%s#L%s' % (gitlab_url, gitlab_project_name, branch, filename, lineno)
+                            git_msg = '%s %s %s' % (filename, lineno, git_msg)
+                            # https://gitlab.base.packertec.com/shixiang-sass/backend/cashier_v4/blame/master/sdks/alipay.py#L14
+                            git_msg = u'\n\n %s [gitlab](%s) %s' % (git_msg, git_repo_url, rid)
+                            break
 
         data = {
                 "msgtype" : "markdown",
