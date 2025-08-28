@@ -19,8 +19,3 @@ $ pip install sentry-mydingding
 ![plugin](https://raw.githubusercontent.com/anshengme/sentry-dingding/master/docs/images/dingding.png)
 
 点击`href`按钮，打开异常详情页面。
-
-#### asdasd
-> asdsd
-
-add
